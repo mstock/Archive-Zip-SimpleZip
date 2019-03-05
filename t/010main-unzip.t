@@ -25,7 +25,7 @@ BEGIN {
     $extra = 1
         if eval { require Test::NoWarnings ;  import Test::NoWarnings; 1 };
 
-    plan tests => 2460 + $extra ;
+    plan tests => 5772 + $extra ;
 
     use_ok('IO::Uncompress::Unzip', qw(unzip $UnzipError)) ;
     use_ok('IO::Compress::Zip', qw(zip $ZipError)) ;
@@ -254,164 +254,191 @@ if (1)
                 {
                     for my $zip64 (0)
                     {
-                        title "** TO $to, Method $method, Comment '$comment', Streamed $streamed. Zip64 $zip64";
+                        for my $utf8 (0, 1)
+                        {
+                            title "** TO $to, Method $method, Comment '$comment', Streamed $streamed. Zip64 $zip64";
                 
-                        my $lex = new LexFile my $name2 ;
-                        my $output;
-                        my $buffer;
-                        my $zipfile;
+                            my $lex = new LexFile my $name2 ;
+                            my $output;
+                            my $buffer;
+                            my $zipfile;
                 
-                        if ($to eq 'buffer')
-                        {
-                            $output = $zipfile = \$buffer ; 
-                        }
-                        elsif ($to eq 'filename')
-                        {
-                            $output = $zipfile = $name2 ;
-                        }
-                        elsif ($to eq 'filehandle')
-                        {
-                            $zipfile = $name2;
-                            $output = new IO::File ">$name2" ;
-                        }
-                        
-                        my $create = 
-                            [
-                                #[ Name => "fred", Payload => "abcd"],
-                                [ "fred1", "abcd1", [] ],
-                                [ "fred2", "abcd2", [Comment => "member comment"] ],
-                                [ "fred3", "abcd3", [] ],
-                            ] ;
-                    
-                        createZip($zipfile, $create, { ZipComment => $comment, 
-                                                    Method     => $method, 
-                                                    Stream     => $streamed, 
-                                                    Zip64      => $zip64
-                                                    } ) ;
-                        
-                        my $z = new Archive::Zip::SimpleUnzip $zipfile ;
-                        isa_ok $z, "Archive::Zip::SimpleUnzip";
-                    
-                        {
-                            title "Names";
-                            is $z->names(), scalar(@$create), "correct number of entries in zip file";
-                            is_deeply [ $z->names() ], [ map { $_->[0] } @$create ], "names ok" ;
-                        }
-                        {
-                            title "zip comment";
-                            is $z->comment(), $comment, "Zip comment is '$comment'";
-                        }
-                        
-                        {
-                            title "Exists";
-                            ok $z->exists("fred3"), "fred3 exists";
-                            ok ! $z->exists("fred4"), "fred4 does not exist";
-                        }
-                        
-                        my $element ;
-                        my @got = ();
-                        my $payload = '';
-                        my $index = 0;
-                        
-                        {
-                            my $input = $create->[$index ++] ;
-                            my $name = $input->[0];
-                            my $expected = $input->[1];                    
-                            
-                            $element = $z->next();
-                            isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
-                            is $element->name(), $name, "Name is '$name'";
-                            is $element->comment(), "", "No comment in '$name";
-                            is $element->content(), $expected, "Payload ok in '$name'";
-                            ok $element->close();
-                        }
-                        
-                        {
-                            my $input = $create->[$index ++] ;
-                            my $name = $input->[0];
-                            my $expected = $input->[1];                    
-                                                
-                            my $element = $z->next();
-                            isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
-                            is $element->name(), $name, "Name is '$name'";
-                            is $element->comment(), "member comment", "comment ok in '$name'";
-                            
-                            my $fh = $element->open();
-                            isa_ok $fh, "Archive::Zip::SimpleUnzip::Handle";
-                            ok !$fh->eof(), "!eof";
-                            ok ! eof($fh), "!eof";
-                            is tell($fh), 0, "tell == 0";
-                            is $fh->tell(), 0, "tell == 0";
-                            
-                            is $fh->read($payload, 1024), length($expected); 
-                            is tell($fh), length($expected), "tell == 5"
-                                or diag $SimpleUnzipError ;
-                            ok $fh->eof(), "eof";
-                            ok eof($fh), "eof";  
-                                
-                            is $payload, $expected, "payload ok in '$name'";
-                        }
-                        
-                        {
-                            my $input = $create->[$index ++] ;
-                            my $name = $input->[0];
-                            my $expected = $input->[1];
-                                                
-                            $element = $z->next();
-                            isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
-                            is $element->name(), $name, "Name is '$name'";
-                            is $element->comment(), "", "No comment in '$name'";                    
-                            my $fh = $element->open();
-                            is $fh->tell(), 0;
-                            ok !$fh->eof();        
-                            local $/;
-                            $payload = <$fh>;
-                            ok $fh->eof();
-                            is $fh->tell(), length($expected);        
-                            is $payload, $expected, "Payload ok in '$name'";
-                        }
-                        
-                        {
-                            $element = $z->next();
-                            ok ! defined $element, "No next";
-                        }
-                        
-                        {
-                            my $input = $create->[0] ;
-                            my $name = $input->[0];  
-                            my $expected = $input->[1];
-
-                            my $element = $z->member($name);
-                            isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
-                            is $element->name(), $name, "Name is '$name'";
-                            my $fh = $element->open();
-                            is $fh->tell(), 0;
-                            ok !$fh->eof();  
-                            my $payload = '';
-                            my $x;
-
-                            my $ix = 1; 
-                            while ($fh->read($x, 1))
+                            if ($to eq 'buffer')
                             {
-                                $payload .= $x ;
-                                is $fh->tell(), $ix ++;
+                                $output = $zipfile = \$buffer ; 
                             }
-                            ok $fh->eof();   
-                            is $fh->tell(), length($expected);                            
-                            is $payload, $expected, "Payload ok in '$name'";
+                            elsif ($to eq 'filename')
+                            {
+                                $output = $zipfile = $name2 ;
+                            }
+                            elsif ($to eq 'filehandle')
+                            {
+                                $zipfile = $name2;
+                                $output = new IO::File ">$name2" ;
+                            }
+                        
+                            my $create = 
+                                [
+                                    #[ Name => "fred", Payload => "abcd"],
+                                    [ "fred1", "abcd1", [] ],
+                                    [ "fred2", "abcd2", [Comment => "member comment"] ],
+                                    [ "fred3", "abcd3", [] ],
+                                    [ "fred4", "abcd4", [Utf8 => 0] ],
+                                    [ "fred5", "abcd5", [Utf8 => 1] ],
+                                ] ;
+                    
+                            createZip($zipfile, $create, { ZipComment => $comment, 
+                                                        Method     => $method, 
+                                                        Stream     => $streamed, 
+                                                        Zip64      => $zip64,
+                                                        Utf8       => $utf8
+                                                        } ) ;
+                        
+                            my $z = new Archive::Zip::SimpleUnzip $zipfile ;
+                            isa_ok $z, "Archive::Zip::SimpleUnzip";
+                    
+                            {
+                                title "Names";
+                                is $z->names(), scalar(@$create), "correct number of entries in zip file";
+                                is_deeply [ $z->names() ], [ map { $_->[0] } @$create ], "names ok" ;
+                            }
+                            {
+                                title "zip comment";
+                                is $z->comment(), $comment, "Zip comment is '$comment'";
+                            }
+                        
+                            {
+                                title "Exists";
+                                ok $z->exists("fred5"), "fred5 exists";
+                                ok ! $z->exists("fred6"), "fred6 does not exist";
+                            }
+                        
+                            my $element ;
+                            my @got = ();
+                            my $payload = '';
+                            my $index = 0;
+                        
+                            {
+                                my $input = $create->[$index ++] ;
+                                my $name = $input->[0];
+                                my $expected = $input->[1];                    
+                            
+                                $element = $z->next();
+                                isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
+                                is $element->name(), $name, "Name is '$name'";
+                                is $element->comment(), "", "No comment in '$name";
+                                is $element->content(), $expected, "Payload ok in '$name'";
+                                is $element->utf8(), $utf8, "Utf8 ok in '$name'";
+                                ok $element->close();
+                            }
+                        
+                            {
+                                my $input = $create->[$index ++] ;
+                                my $name = $input->[0];
+                                my $expected = $input->[1];                    
+                                                
+                                my $element = $z->next();
+                                isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
+                                is $element->name(), $name, "Name is '$name'";
+                                is $element->comment(), "member comment", "comment ok in '$name'";
+                                is $element->utf8(), $utf8, "Utf8 ok in '$name'";
+                            
+                                my $fh = $element->open();
+                                isa_ok $fh, "Archive::Zip::SimpleUnzip::Handle";
+                                ok !$fh->eof(), "!eof";
+                                ok ! eof($fh), "!eof";
+                                is tell($fh), 0, "tell == 0";
+                                is $fh->tell(), 0, "tell == 0";
+                            
+                                is $fh->read($payload, 1024), length($expected); 
+                                is tell($fh), length($expected), "tell == 5"
+                                    or diag $SimpleUnzipError ;
+                                ok $fh->eof(), "eof";
+                                ok eof($fh), "eof";  
+                                
+                                is $payload, $expected, "payload ok in '$name'";
+                            }
+                        
+                            {
+                                my $input = $create->[$index ++] ;
+                                my $name = $input->[0];
+                                my $expected = $input->[1];
+                                                
+                                $element = $z->next();
+                                isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
+                                is $element->name(), $name, "Name is '$name'";
+                                is $element->comment(), "", "No comment in '$name'";                    
+                                is $element->utf8(), $utf8, "Utf8 ok in '$name'";
+                                my $fh = $element->open();
+                                is $fh->tell(), 0;
+                                ok !$fh->eof();        
+                                local $/;
+                                $payload = <$fh>;
+                                ok $fh->eof();
+                                is $fh->tell(), length($expected);        
+                                is $payload, $expected, "Payload ok in '$name'";
+                            }
+
+                            {
+                                my $input = $create->[$index ++] ;
+                                my $name = $input->[0];
+
+                                $element = $z->next();
+                                isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
+                                is $element->utf8(), 0, "Utf8 ok in '$name'";
+                            }
+
+                            {
+                                my $input = $create->[$index ++] ;
+                                my $name = $input->[0];
+
+                                $element = $z->next();
+                                isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
+                                is $element->utf8(), 1, "Utf8 ok in '$name'";
+                            }
+
+                            {
+                                $element = $z->next();
+                                ok ! defined $element, "No next";
+                            }
+                        
+                            {
+                                my $input = $create->[0] ;
+                                my $name = $input->[0];  
+                                my $expected = $input->[1];
+
+                                my $element = $z->member($name);
+                                isa_ok $element, "Archive::Zip::SimpleUnzip::Member";
+                                is $element->name(), $name, "Name is '$name'";
+                                my $fh = $element->open();
+                                is $fh->tell(), 0;
+                                ok !$fh->eof();  
+                                my $payload = '';
+                                my $x;
+
+                                my $ix = 1; 
+                                while ($fh->read($x, 1))
+                                {
+                                    $payload .= $x ;
+                                    is $fh->tell(), $ix ++;
+                                }
+                                ok $fh->eof();   
+                                is $fh->tell(), length($expected);                            
+                                is $payload, $expected, "Payload ok in '$name'";
+                            }
+
+                            {
+                                # member that does not exist
+
+                                my $name = "not-there" ;
+                                my $element = $z->member($name);
+                                isnt $element, "Archive::Zip::SimpleUnzip::Member";
+                                ok ! $element, "element object false";
+                                is $SimpleUnzipError, "Member '$name' not in zip" ;
+                            }
+
+                            ok $z->close, "closed ok";
                         }
-
-                        {
-                            # member that does not exist
-
-                            my $name = "not-there" ;
-                            my $element = $z->member($name);
-                            isnt $element, "Archive::Zip::SimpleUnzip::Member";
-                            ok ! $element, "element object false";
-                            is $SimpleUnzipError, "Member '$name' not in zip" ;
-                        }
-
-                        ok $z->close, "closed ok";
                     }
                             
                 }

@@ -22,7 +22,7 @@ BEGIN {
     $extra = 1
         if eval { require Test::NoWarnings ;  import Test::NoWarnings; 1 };
 
-    plan tests => 833 + $extra ;
+    plan tests => 876 + $extra ;
 
     use_ok('IO::Uncompress::Unzip', qw(unzip $UnzipError)) ;
     use_ok('Archive::Zip::SimpleZip', qw($SimpleZipError)) ;
@@ -1341,6 +1341,50 @@ SKIP:
         is $got[2]{Name},    canonFile("3"); 
         is $got[2]{Payload}, $encString;
     }        
+}
+
+{
+    title "Utf8 option";
+
+    my $content = "Hello, World!";
+
+    for my $utf8 (0, 1) {
+        my $lex2 = new LexFile my $name2;
+        my $zipfile = $name2;
+
+        my $z = new Archive::Zip::SimpleZip $zipfile, Utf8 => $utf8;
+        isa_ok $z, "Archive::Zip::SimpleZip";
+
+        my $lex = new LexFile my $file1;
+        writeFile($file1, $content);
+
+        ok $z->add($file1, Name => "1");
+        ok $z->addString($content, Name => "2");
+
+        my $fh;
+        ok $fh = $z->openMember(Name => "3");
+        print $fh $content;
+        is tell($fh), bytes::length($content);
+        ok close $fh;
+
+        ok $z->add($file1, Name => "4", Utf8 => 0);
+        ok $z->add($file1, Name => "5", Utf8 => 1);
+
+        ok $z->close, "closed ok";
+
+        my @got = getContent($zipfile);
+        is @got, 5, "five entries in zip";
+        is $got[0]{Name}, canonFile("1");
+        is $got[0]{Utf8}, $utf8;
+        is $got[1]{Name}, canonFile("2");
+        is $got[1]{Utf8}, $utf8;
+        is $got[2]{Name}, canonFile("3");
+        is $got[2]{Utf8}, $utf8;
+        is $got[3]{Name}, canonFile("4");
+        is $got[3]{Utf8}, 0;
+        is $got[4]{Name}, canonFile("5");
+        is $got[4]{Utf8}, 1;
+    }
 }
 
 {

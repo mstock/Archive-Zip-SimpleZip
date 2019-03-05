@@ -344,6 +344,7 @@ sub scanCentralDirectory
     while ($self->smartReadExact(\$buffer, 46) && 
            unpack("V", $buffer) == ZIP_CENTRAL_HDR_SIG) {
 
+        my $gpFlag             = unpack("v", substr($buffer, 8, 2));
         my $crc32              = unpack("V", substr($buffer, 16, 4));
         my $compressedLength   = unpack("V", substr($buffer, 20, 4));
         my $uncompressedLength = unpack("V", substr($buffer, 24, 4));
@@ -352,6 +353,7 @@ sub scanCentralDirectory
         my $comment_length     = unpack("v", substr($buffer, 32, 2));
         my $locHeaderOffset    = unpack("V", substr($buffer, 42, 4));
 
+        my $utf8 = ($gpFlag & ZIP_GP_FLAG_LANGUAGE_ENCODING) ? 1 : 0;
         my $filename;
         my $extraField;
         my $comment = '';
@@ -397,6 +399,7 @@ sub scanCentralDirectory
 
         my %data = (
                     'Name'               => $filename,
+                    'Utf8'               => $utf8,
                     'Comment'            => $comment,
                     'LocalHeaderOffset'  => $locHeaderOffset,
                     'CompressedLength'   => $compressedLength ,
@@ -638,6 +641,13 @@ sub STORABLE_thaw
         
         return $self->{Member}{Comment};
     }       
+
+    sub utf8
+    {
+        my $self = shift;
+
+        return $self->{Member}{Utf8};
+    }
 }
 
 
@@ -967,6 +977,11 @@ Returns the uncompressed content.
 =item $fh = $m->open()
 
 Returns a filehandle that can be used to read the uncompressed content.
+
+=item $utf8 = $m->utf8()
+
+Returns the value of the language encoding flag. If true, C<name> and
+C<comment> must be considered as UTF-8 encoded.
 
 =back
 

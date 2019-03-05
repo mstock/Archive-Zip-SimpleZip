@@ -38,6 +38,7 @@ our %PARAMS = (
         'zip64'         => [IO::Compress::Base::Common::Parse_boolean,   0],
         'filtername'    => [IO::Compress::Base::Common::Parse_code,      undef],
         'canonicalname' => [IO::Compress::Base::Common::Parse_boolean,   1],
+        'utf8'          => [IO::Compress::Base::Common::Parse_boolean,   0],
         'textflag'      => [IO::Compress::Base::Common::Parse_boolean,   0],
         'storelinks'    => [IO::Compress::Base::Common::Parse_boolean,   0],
         'autoflush'     => [IO::Compress::Base::Common::Parse_boolean,   0],        
@@ -1046,6 +1047,13 @@ filename header field.
     and UNIX file systems etc.
 
 This option defaults to B<true>.
+
+=item C<< Utf8 => 0|1 >>
+
+This option allows to control the language encoding (EFS) flag. If set, the
+filename and comment fields for the file must be encoded using UTF-8.
+
+This option defaults to B<false>.
 
 =item C<< FilterName => sub { ... }  >>
 
